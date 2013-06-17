@@ -12,7 +12,7 @@ GCC=gcc-4.7.1
 NEWLIB=newlib-1.20.0
 GDB=gdb-6.8
 
-ZLIB=zlib-1.2.7
+ZLIB=zlib-1.2.8
 LIBPNG=libpng-1.5.10
 BZIP2=bzip2-1.0.6
 FREETYPE=freetype-2.4.9
@@ -150,14 +150,14 @@ function toolchain_install
 
 function zlib_install
 {
-	if [ ! -f "$ZLIB.tar.bz2" ]; then
-		echo -e "Downloading $ZLIB.tar.bz2"
-		wget -c http://zlib.net/$ZLIB.tar.bz2 || exit 0
+	if [ ! -f "$ZLIB.tar.gz" ]; then
+		echo -e "Downloading $ZLIB.tar.gz"
+		wget -c http://zlib.net/$ZLIB.tar.gz || exit 0
 	fi;
 
 	echo -e "Extracting zlib..."
 	rm -rf $ZLIB
-	tar xjf $ZLIB.tar.bz2 >> $LOGFILE 2>&1 || exit 0
+	tar xzf $ZLIB.tar.gz >> $LOGFILE 2>&1 || exit 0
 	cd $ZLIB
 
 	export TARGET_SAVE=$TARGET
