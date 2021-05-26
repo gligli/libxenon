@@ -8,14 +8,14 @@ PREFIX=/usr/local/xenon # Install location of your final toolchain
 PARALLEL=
 
 BINUTILS=binutils-2.22
-GCC=gcc-4.7.1
+GCC=gcc-4.7.4
 NEWLIB=newlib-1.20.0
 GDB=gdb-6.8
 
-ZLIB=zlib-1.2.8
-LIBPNG=libpng-1.5.10
-BZIP2=bzip2-1.0.6
-FREETYPE=freetype-2.4.9
+ZLIB=zlib-1.2.11
+LIBPNG=libpng-1.5.30
+BZIP2=bzip2-1.0.8
+FREETYPE=freetype-2.4.12
 
 BUILD_BINUTILS=true
 BUILD_GCC=true
@@ -72,7 +72,7 @@ function toolchain_install
         # Check if newlib sources are available, download it if needed
         if [ ! -f "$NEWLIB.tar.gz" ]; then
                 echo -e "Downloading $NEWLIB.tar.gz"
-                wget -c ftp://sources.redhat.com/pub/newlib/$NEWLIB.tar.gz || exit 0
+                wget -c ftp://sourceware.org/pub/newlib/$NEWLIB.tar.gz || exit 0
         fi;
 
         rm -rf build
@@ -223,7 +223,7 @@ function bzip2_install
 {
 	if [ ! -f "$BZIP2.tar.gz" ]; then
 		echo -e "Downloading $BZIP2.tar.gz"
-		wget -c http://bzip.org/1.0.6/$BZIP2.tar.gz || exit 0
+		wget -c ftp://sourceware.org/pub/bzip2/$BZIP2.tar.gz || exit 0
 	fi;
 
 	echo -e "Extracting bzip2..."
@@ -318,7 +318,7 @@ function bin2s_install
 
 function cube
 {
-	rm -rf free60 &>/dev/null
+	rm -rf libxenon &>/dev/null
 	rm cube.elf32 &>/dev/null
 
 	#check if git is present to download and install libxenon
@@ -328,10 +328,10 @@ function cube
 	if [ $RETVAL -eq 1 ]; then
 
 		echo -e "Downloading Cube Sample"
-		git clone git://free60.git.sourceforge.net/gitroot/free60/free60 >> $LOGFILE 2>&1
+		git clone https://github.com/Free60Project/libxenon.git >> $LOGFILE 2>&1
 		echo -e "Building Cube Sample..."
-		make -C free60/devkitxenon/examples/xenon/graphics/cube >> $LOGFILE 2>&1
-		cp free60/devkitxenon/examples/xenon/graphics/cube/cube.elf32 .
+		make -C libxenon/devkitxenon/examples/xenon/graphics/cube >> $LOGFILE 2>&1
+		cp libxenon/devkitxenon/examples/xenon/graphics/cube/cube.elf32 .
 		echo
 		echo -e "cube.elf32 compiled, run it via xell"
 		echo		
