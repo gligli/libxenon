@@ -49,7 +49,7 @@ typedef struct
 s32 USBStorage_Init(void);
 void USBStorage_Umount(void);
 
-s32 USBStorage_Open(struct ehci_hcd * ehci,usbstorage_handle *dev, struct ehci_device *fd);
+//s32 USBStorage_Open(struct ehci_hcd * ehci,usbstorage_handle *dev, struct ehci_device *fd);
 s32 USBStorage_Close(usbstorage_handle *dev);
 s32 USBStorage_Reset(struct ehci_hcd * ehci,usbstorage_handle *dev);
 
@@ -64,7 +64,7 @@ s32 USBStorage_Inquiry(struct ehci_hcd * ehci,usbstorage_handle *dev, u8 lun);
 
 #define DEVICE_TYPE_WII_USB (('W'<<24)|('U'<<16)|('S'<<8)|'B')
 
-s32 USBStorage_Try_Device(struct ehci_hcd * ehci,struct ehci_device *fd);
+//s32 USBStorage_Try_Device(struct ehci_hcd * ehci,struct ehci_device *fd);
 void USBStorage_Umount(void);
 
 #ifdef __cplusplus

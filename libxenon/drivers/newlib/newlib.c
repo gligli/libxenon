@@ -17,6 +17,7 @@
 #include <debug.h>
 
 void (*stdout_hook)(const char *text, int len) = 0;
+void (*stdlog_hook)(const char *text, int len) = 0;
 
 /**
  * Fake vfs
@@ -24,6 +25,8 @@ void (*stdout_hook)(const char *text, int len) = 0;
 ssize_t vfs_console_write(struct _reent *r, int fd, const char *src, size_t len) {
 	if (stdout_hook)
 		stdout_hook(src, len);
+	if (stdlog_hook)
+		stdlog_hook(src, len);
 	size_t i;
 	for (i = 0; i < len; ++i)
 		putch(((const char*) src)[i]);
@@ -1209,6 +1212,9 @@ struct dirent* readdir(DIR *dirp) {
 	strncpy(dirp->fileData.d_name, filename, sizeof (dirp->fileData.d_name));
 	dirp->fileData.d_ino = st.st_ino;
 	dirp->fileData.d_type = S_ISDIR(st.st_mode) ? DT_DIR : DT_REG;
+	dirp->fileData.d_atime = st.st_atime;
+	dirp->fileData.d_mtime = st.st_mtime;
+	dirp->fileData.d_ctime = st.st_ctime;
 	return &(dirp->fileData);
 }
 
@@ -1248,6 +1254,10 @@ long int telldir(DIR *dirp) {
 	}
 
 	return dirp->position;
+}
+
+int fcntl(int filedes, int cmd, ...) {
+  return -1;
 }
 
 int mkdir(const char *path, mode_t mode) {

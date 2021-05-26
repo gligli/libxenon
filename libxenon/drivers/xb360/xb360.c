@@ -94,41 +94,20 @@ void print_key(char *name, unsigned char *data)
 
 int cpu_get_key(unsigned char *data)
 {
-	*(unsigned long long*)&data[0] = xenon_secotp_read_line(3);
-	*(unsigned long long*)&data[8] = xenon_secotp_read_line(5);
+	*(unsigned long long*)&data[0] = xenon_secotp_read_line(3) | xenon_secotp_read_line(4);
+	*(unsigned long long*)&data[8] = xenon_secotp_read_line(5) | xenon_secotp_read_line(6);
 	return 0;
 }
 
-int virtualfuses_read(unsigned char *data)
-{
-  int vfuses_offset = 0x95000; //Page (0x4A8 * 0x200)
-  if (sfc.initialized != SFCX_INITIALIZED)
-    return 1;
-
-  int status = sfcx_read_page(data, vfuses_offset, 0);
-
-  //read from nand
-  if (!SFCX_SUCCESS(status))
-    return 2; //failure
-  else
-    return 0; //success
-}
-
-
 int get_virtual_cpukey(unsigned char *data)
 {
-  int result = 0;
-  unsigned char buffer[MAX_PAGE_SZ];
-  result = virtualfuses_read(buffer);
+  unsigned char buffer[VFUSES_SIZE];
 
-  if (result!=0)
-  {
-     printf(" ! SFCX error while reading virtualfuses\n");
-     return result;
-  }
+  if (xenon_get_logical_nand_data(&buffer, VFUSES_OFFSET, VFUSES_SIZE == -1))
+	  return 2; //Unable to read NAND data...
 
-    //if we got here then it was at least able to read from nand
-    //now we need to verify the data somehow
+  //if we got here then it was at least able to read from nand
+  //now we need to verify the data somehow
   if (buffer[0]==0xC0 && buffer[1]==0xFF && buffer[2]==0xFF && buffer[3]==0xFF)
   {
 	memcpy(data,&buffer[0x20],0x10);
@@ -158,38 +137,8 @@ int kv_get_key(unsigned char keyid, unsigned char *keybuf, int *keybuflen, unsig
 
 int kv_read(unsigned char *data, int virtualcpukey)
 {
-	int page=0;
-	int pages=0;
-	int togo=0;
-	int kv_offset = 0;
-	int cntr = 0;
-
-	if (sfc.initialized != SFCX_INITIALIZED)
-		return 1;
-
-	unsigned char buffer[MAX_PAGE_SZ];
-	memset(buffer, '\0', sizeof(buffer));
-
-	sfcx_read_page(buffer, 0, 0);
-
-	kv_offset =  buffer[KV_FLASH_PTR+0]; kv_offset <<= 8;
-	kv_offset |= buffer[KV_FLASH_PTR+1]; kv_offset <<= 8;
-	kv_offset |= buffer[KV_FLASH_PTR+2]; kv_offset <<= 8;
-	kv_offset |= buffer[KV_FLASH_PTR+3];
-
-	//printf("kv_read: kv_offset: %d\n", kv_offset);
-
-	page = (kv_offset / sfc.page_sz);
-	pages = KV_FLASH_PAGES;
-	togo = pages;
-
-	while(togo)
-	{
-		sfcx_read_page((unsigned char*) &data[cntr * sfc.page_sz], page * sfc.page_sz, 0);
-		page++;
-		cntr++;
-		togo--;
-	}
+	if (xenon_get_logical_nand_data(data, KV_FLASH_OFFSET, KV_FLASH_SIZE) == -1)
+		return -1;
 
 	unsigned char cpu_key[0x10];
         if (virtualcpukey)
@@ -256,6 +205,8 @@ int kv_read(unsigned char *data, int virtualcpukey)
 
 int kv_get_dvd_key(unsigned char *dvd_key)
 {
+	if (KV_FLASH_SIZE == 0)
+		return -1; //It's bad data!
 	unsigned char buffer[KV_FLASH_SIZE], tmp[0x10];
 	int result = 0;
 	int keylen = 0x10;
@@ -296,26 +247,124 @@ void print_cpu_dvd_keys(void)
 	memset(key, '\0', sizeof(key));
 	if (cpu_get_key(key)==0)
 		print_key(" * your cpu key", key);
-		
-	memset(key, '\0',sizeof(key));
-	if (get_virtual_cpukey(key)==0)
-		print_key(" * your virtual cpu key", key);
+	if (xenon_logical_nand_data_ok() == 0)
+	{
+		memset(key, '\0',sizeof(key));
+		if (get_virtual_cpukey(key)==0)
+			print_key(" * your virtual cpu key", key);
 
-	memset(key, '\0', sizeof(key));
-	if (kv_get_dvd_key(key)==0)
-		print_key(" * your dvd key", key);
-
+		memset(key, '\0', sizeof(key));
+		if (kv_get_dvd_key(key)==0)
+			print_key(" * your dvd key", key);
+	}
+	else
+		printf(" ! Unable to read Keyvault data from NAND\n");
 	printf("\n");
 }
 
-int updateXeLL(void * addr, unsigned len)
+//This version crashes... dunno why... but... old one works perfectly fine so, why change it?!
+
+//int updateXeLL(void * addr, unsigned len)
+//{
+//	int i, j, k, startblock, current, offsetinblock, blockcnt;
+//	unsigned char *user, *spare;
+//    
+//    if (sfc.initialized != SFCX_INITIALIZED){
+//        printf(" ! sfcx is not initialized! Unable to update XeLL in NAND!\n");
+//		return -1;
+//    }
+//    
+//    printf("\n * found XeLL update. press power NOW if you don't want to update.\n");
+//    delay(15);
+//    
+//    for (k = 0; k < XELL_OFFSET_COUNT; k++)
+//    {
+//      current = xelloffsets[k];
+//      offsetinblock = current % sfc.block_sz;
+//      startblock = current/sfc.block_sz;
+//      blockcnt = offsetinblock ? (XELL_SIZE/sfc.block_sz)+1 : (XELL_SIZE/sfc.block_sz);
+//      
+//    
+//      spare = (unsigned char*)malloc(blockcnt*sfc.pages_in_block*sfc.meta_sz);
+//      if(!spare){
+//        printf(" ! Error while memallocating filebuffer (spare)\n");
+//        return -1;
+//      }
+//      user = (unsigned char*)malloc(blockcnt*sfc.block_sz);
+//      if(!user){
+//        printf(" ! Error while memallocating filebuffer (user)\n");
+//        return -1;
+//      }
+//      j = 0;
+//      unsigned char pagebuf[MAX_PAGE_SZ];	
+//
+//      for (i = (startblock*sfc.pages_in_block); i< (startblock+blockcnt)*sfc.pages_in_block; i++)
+//      {
+//         sfcx_read_page(pagebuf, (i*sfc.page_sz), 1);
+//		//Split rawpage into user & spare
+//		memcpy(&user[j*sfc.page_sz],pagebuf,sfc.page_sz);
+//		memcpy(&spare[j*sfc.meta_sz],&pagebuf[sfc.page_sz],sfc.meta_sz);
+//		j++;
+//      }
+//      
+//        if (memcmp(&user[offsetinblock+(XELL_FOOTER_OFFSET)],XELL_FOOTER,XELL_FOOTER_LENGTH) == 0){
+//            printf(" * XeLL Binary in NAND found @ 0x%08X\n", (startblock*sfc.block_sz)+offsetinblock);
+//         
+//        memcpy(&user[offsetinblock], addr,len); //Copy over updxell.bin
+//        printf(" * Writing to NAND!\n");
+//		j = 0;
+//        for (i = startblock*sfc.pages_in_block; i < (startblock+blockcnt)*sfc.pages_in_block; i ++)
+//        {
+//			if (!(i%sfc.pages_in_block))
+//			sfcx_erase_block(i*sfc.page_sz);
+//
+//			/* Copy user & spare data together in a single rawpage */
+//            memcpy(pagebuf,&user[j*sfc.page_sz],sfc.page_sz);
+//			memcpy(&pagebuf[sfc.page_sz],&spare[j*sfc.meta_sz],sfc.meta_sz);
+//			j++;
+//
+//			if (!(sfcx_is_pageerased(pagebuf))) // We dont need to write to erased pages
+//			{
+//				memset(&pagebuf[sfc.page_sz+0x0C],0x0, 4); //zero only EDC bytes
+//				sfcx_calcecc((unsigned int *)pagebuf); 	  //recalc EDC bytes
+//				sfcx_write_page(pagebuf, i*sfc.page_sz);
+//			}
+//        }
+//        printf(" * XeLL flashed! Reboot the xbox to enjoy the new build\n");
+//		for(;;);
+//	
+//		}
+//	}
+//    printf(" ! Couldn't locate XeLL binary in NAND. Aborting!\n");
+//    return -1; // if this point is reached, updating xell failed
+//}
+
+int updateXeLL(char *path)
 {
-	int i, j, k, startblock, current, offsetinblock, blockcnt;
-	unsigned char *user, *spare;
+    FILE *f;
+    int i, j, k, status, startblock, current, offsetinblock, blockcnt, filelength;
+    unsigned char *updxell, *user, *spare;
+    
+    /* Check if updxell.bin is present */
+    f = fopen(path, "rb");
+    if (!f){
+        return -1; //Can't find/open updxell.bin
+    }
     
     if (sfc.initialized != SFCX_INITIALIZED){
+        fclose(f);
         printf(" ! sfcx is not initialized! Unable to update XeLL in NAND!\n");
-		return -1;
+	return -1;
+    }
+   
+    /* Check filesize of updxell.bin, only accept full 256kb binaries */
+    fseek(f, 0, SEEK_END);
+    filelength=ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (filelength != XELL_SIZE){
+        fclose(f);
+        printf(" ! %s does not have the correct size of 256kb. Aborting update!\n", path);
+        return -1;
     }
     
     printf("\n * found XeLL update. press power NOW if you don't want to update.\n");
@@ -345,42 +394,61 @@ int updateXeLL(void * addr, unsigned len)
       for (i = (startblock*sfc.pages_in_block); i< (startblock+blockcnt)*sfc.pages_in_block; i++)
       {
          sfcx_read_page(pagebuf, (i*sfc.page_sz), 1);
-		//Split rawpage into user & spare
-		memcpy(&user[j*sfc.page_sz],pagebuf,sfc.page_sz);
-		memcpy(&spare[j*sfc.meta_sz],&pagebuf[sfc.page_sz],sfc.meta_sz);
-		j++;
+	 //Split rawpage into user & spare
+	 memcpy(&user[j*sfc.page_sz],pagebuf,sfc.page_sz);
+	 memcpy(&spare[j*sfc.meta_sz],&pagebuf[sfc.page_sz],sfc.meta_sz);
+	 j++;
       }
       
         if (memcmp(&user[offsetinblock+(XELL_FOOTER_OFFSET)],XELL_FOOTER,XELL_FOOTER_LENGTH) == 0){
             printf(" * XeLL Binary in NAND found @ 0x%08X\n", (startblock*sfc.block_sz)+offsetinblock);
+        
+         updxell = (unsigned char*)malloc(XELL_SIZE);
+         if(!updxell){
+           printf(" ! Error while memallocating filebuffer (updxell)\n");
+           return -1;
+         }
+        
+         status = fread(updxell,1,XELL_SIZE,f);
+         if (status != XELL_SIZE){
+           fclose(f);
+           printf(" ! Error reading file from %s\n", path);
+           return -1;
+         }
+		 
+		 if (memcmp(&updxell[XELL_FOOTER_OFFSET],XELL_FOOTER, XELL_FOOTER_LENGTH)){
+	   printf(" ! XeLL does not seem to have matching footer, Aborting update!\n");
+	   return -1;
+	 }
          
-        memcpy(&user[offsetinblock], addr,len); //Copy over updxell.bin
-        printf(" * Writing to NAND!\n");
-		j = 0;
-        for (i = startblock*sfc.pages_in_block; i < (startblock+blockcnt)*sfc.pages_in_block; i ++)
-        {
-			if (!(i%sfc.pages_in_block))
-			sfcx_erase_block(i*sfc.page_sz);
+         fclose(f);
+         memcpy(&user[offsetinblock], updxell,XELL_SIZE); //Copy over updxell.bin
+         printf(" * Writing to NAND!\n");
+	 j = 0;
+         for (i = startblock*sfc.pages_in_block; i < (startblock+blockcnt)*sfc.pages_in_block; i ++)
+         {
+	     if (!(i%sfc.pages_in_block))
+		sfcx_erase_block(i*sfc.page_sz);
 
-			/* Copy user & spare data together in a single rawpage */
-            memcpy(pagebuf,&user[j*sfc.page_sz],sfc.page_sz);
-			memcpy(&pagebuf[sfc.page_sz],&spare[j*sfc.meta_sz],sfc.meta_sz);
-			j++;
+	     /* Copy user & spare data together in a single rawpage */
+             memcpy(pagebuf,&user[j*sfc.page_sz],sfc.page_sz);
+	     memcpy(&pagebuf[sfc.page_sz],&spare[j*sfc.meta_sz],sfc.meta_sz);
+	     j++;
 
-			if (!(sfcx_is_pageerased(pagebuf))) // We dont need to write to erased pages
-			{
-				memset(&pagebuf[sfc.page_sz+0x0C],0x0, 4); //zero only EDC bytes
-				sfcx_calcecc((unsigned int *)pagebuf); 	  //recalc EDC bytes
-				sfcx_write_page(pagebuf, i*sfc.page_sz);
-			}
-        }
-        printf(" * XeLL flashed! Reboot the xbox to enjoy the new build\n");
-		for(;;);
+	     if (!(sfcx_is_pageerased(pagebuf))) // We dont need to write to erased pages
+	     {
+             memset(&pagebuf[sfc.page_sz+0x0C],0x0, 4); //zero only EDC bytes
+             sfcx_calcecc((unsigned int *)pagebuf); 	  //recalc EDC bytes
+             sfcx_write_page(pagebuf, i*sfc.page_sz);
+	     }
+         }
+         printf(" * XeLL flashed! Reboot the xbox to enjoy the new build\n");
+	 for(;;);
 	
-		}
-	}
+      }
+    }
     printf(" ! Couldn't locate XeLL binary in NAND. Aborting!\n");
-    return -1; // if this point is reached, updating xell failed
+    return -1;
 }
 
 unsigned int xenon_get_DVE()
@@ -417,37 +485,63 @@ int xenon_get_console_type()
     consoleVersion = xenon_get_XenosID();
     DVEversion = xenon_get_DVE();
     PVR = xenon_get_CPU_PVR();
-    
-    if(PVR == 0x710200 || PVR == 0x710300)
-    {
-        return REV_ZEPHYR;
-    }
-    else
-    {
-        if(consoleVersion < 0x5821)
-        {
+	if(PVR == 0x710200 || PVR == 0x710300) //TODO: Add XenosID check also!
+		return REV_ZEPHYR;
+    if(consoleVersion < 0x5821)
 		return REV_XENON;
-        }
-        else if(consoleVersion >= 0x5821 && consoleVersion < 0x5831)
-        {
+	else if(consoleVersion >= 0x5821 && consoleVersion < 0x5831)
+	{
 		return REV_FALCON;
-        }
-        else if(consoleVersion >= 0x5831 && consoleVersion < 0x5841)
-        {
+	}
+	else if(consoleVersion >= 0x5831 && consoleVersion < 0x5841)
 		return REV_JASPER;
-        }
-        else if(consoleVersion >= 0x5841 && consoleVersion < 0x5851)
-        {
-			if (DVEversion >= 0x20)
-				return REV_CORONA;
-			else
-				return REV_TRINITY;
-        }
-        else if(consoleVersion >= 0x5851)
-        {
+	else if(consoleVersion >= 0x5841 && consoleVersion < 0x5851)
+	{
+		//TODO: If PVR is always the same for trinity, move it to the if statement above...
+		if (DVEversion >= 0x20 && PVR == 0x710800)
+		{
+			if (PCIBridgeRevisionID >= 0x70 && sfcx_readreg(SFCX_PHISON) != 0)
+				return REV_CORONA_PHISON;
+			return REV_CORONA;
+		}
+		else
+			return REV_TRINITY;
+	}
+	else if(consoleVersion >= 0x5851)
 		return REV_WINCHESTER;
-        }
-    }
-
     return REV_UNKNOWN;
+}
+
+int xenon_logical_nand_data_ok()
+{
+	uint16_t tmp;
+	memcpy(&tmp, (const void*)(0x80000200C8000000ULL), 2);
+	if (tmp != 0xFF4F)
+		return -1;
+	return 0;
+}
+
+int xenon_get_logical_nand_data(void* buf, unsigned int offset, unsigned int len)
+{
+	if (xenon_logical_nand_data_ok() == 0)
+		memcpy(buf, (const void*)(0x80000200C8000000ULL + offset), len);
+	else
+		return -1;
+	return 0;
+}
+
+unsigned int xenon_get_kv_size()
+{
+	unsigned int ret;
+	if (xenon_get_logical_nand_data(&ret, 0x60, 4) == 0)
+		return ret;
+	return 0;
+}
+
+unsigned int xenon_get_kv_offset()
+{
+	unsigned int ret;
+	if (xenon_get_logical_nand_data(&ret, 0x6C, 4) == 0)
+		return ret;
+	return 0;
 }

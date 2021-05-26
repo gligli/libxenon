@@ -65,10 +65,15 @@
 #define XEKEY_XEIKA_CERTIFICATE						0x37
 #define XEKEY_CARDEA_CERTIFICATE					0x38
 
-#define KV_FLASH_SIZE             0x4000
+unsigned int xenon_get_kv_size();
+unsigned int xenon_get_kv_offset();
+
+#define KV_FLASH_SIZE             xenon_get_kv_size()
+#define KV_FLASH_OFFSET			  xenon_get_kv_offset()
 #define KV_FLASH_PAGES            KV_FLASH_SIZE / 0x200
 #define KV_FLASH_PTR              0x6C
 #define VFUSES_SIZE               0x60
+#define VFUSES_OFFSET			  0x95000
 
 #define XELL_SIZE (256*1024)
 #define XELL_FOOTER_OFFSET (256*1024-16)
@@ -89,7 +94,8 @@ static const unsigned int xelloffsets[XELL_OFFSET_COUNT] = {0x70000, // ggBoot m
 #define REV_JASPER 3
 #define REV_TRINITY 4
 #define REV_CORONA 5
-#define REV_WINCHESTER 6
+#define REV_CORONA_PHISON 6
+#define REV_WINCHESTER 7
 #define REV_UNKNOWN (-1)
 
 typedef struct kventry {
@@ -101,17 +107,21 @@ typedef struct kventry {
 
 void print_key(char *name, unsigned char *data);
 int cpu_get_key(unsigned char *data);
-int virtualfuses_read(unsigned char *data);
 int get_virtual_cpukey(unsigned char *data);
 int kv_read(unsigned char *data, int virtualcpukey);
 int kv_get_dvd_key(unsigned char *dvd_key);
 int kv_get_key(unsigned char keyid, unsigned char *keybuf, int *keybuflen, unsigned char *keyvault);
 void print_cpu_dvd_keys(void);
-int updateXeLL(void * addr, unsigned len);
+//int updateXeLL(void * addr, unsigned len);
+int updateXeLL(char *path);
 unsigned int xenon_get_DVE();
 unsigned int xenon_get_PCIBridgeRevisionID();
 unsigned int xenon_get_CPU_PVR();
 unsigned int xenon_get_XenosID();
 int xenon_get_console_type(void);
+
+int xenon_get_logical_nand_data(void* buf, unsigned int offset, unsigned int len);
+int xenon_logical_nand_data_ok();
+#define MMC_FLASH_SIZE 0x3000000
 
 #endif /* XB360_H_ */
