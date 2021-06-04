@@ -1,18 +1,13 @@
-diff -aur newlib-1.20.0/config.sub newlib-1.20.0/config.sub
---- newlib-1.20.0/config.sub	2008-12-18 04:26:46.000000000 +0100
-+++ newlib-1.20.0/config.sub	2009-04-12 20:36:55.000000000 +0200
-@@ -919,6 +919,14 @@
- 	ppc64le-* | powerpc64little-*)
- 		basic_machine=powerpc64le-`echo $basic_machine | sed 's/^[^-]*-//'`
- 		;;
-+	ppu)
-+		basic_machine=powerpc64-unknown
-+		os=-none
-+		;;
-+	xenon)
-+		basic_machine=powerpc64-unknown
-+		os=-none
-+		;;
- 	ps2)
- 		basic_machine=i386-ibm
- 		;;
+--- newlib-4.1.0/config.sub	2020-12-18 15:50:49.000000000 -0800
++++ newlib-4.1.0_/config.sub	2021-06-04 02:43:56.000000000 -0700
+@@ -628,6 +628,10 @@
+ 				basic_machine=i686-pc
+ 				os=mingw32
+ 				;;
++			xenon)
++				basic_machine=powerpc64-unknown
++				basic_os=linux
++				;;
+ 			ymp)
+ 				basic_machine=ymp-cray
+ 				os=unicos
